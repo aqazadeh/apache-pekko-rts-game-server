@@ -18,25 +18,26 @@ import java.time.Duration;
 /**
  * BuildingActor — player-scoped manager actor.
  *
- * EntityId = "Buildings-{playerId}"  (e.g. "Buildings-player-1")
+ * EntityId = "Buildings-{playerId}" (e.g. "Buildings-player-1")
  *
  * A single instance of this actor manages ALL buildings for one player.
- * Its state is {@link BuildingsState}, which holds a Map<buildingId, BuildingDetail>.
+ * Its state is {@link BuildingsState}, which holds a Map<buildingId,
+ * BuildingDetail>.
  *
  * Lifecycle of an upgrade:
- *   Master                   BuildingActor              Timer
- *     │─── StartConstructionCmd ──────────►│
- *     │                                    │── persist ConstructionStartedEvent
- *     │                                    │── scheduleOnce(duration) ──────────►│
- *     │◄── BuildingUpdateNotification(CONSTRUCTING) ───│
- *     │                                    │           │  (time passes)
- *     │                                    │◄──────────│ CompleteConstructionCmd
- *     │                                    │── persist ConstructionCompletedEvent
- *     │◄── BuildingUpdateNotification(COMPLETED) ──────│
+ * Master BuildingActor Timer
+ * │─── StartConstructionCmd ──────────►│
+ * │ │── persist ConstructionStartedEvent
+ * │ │── scheduleOnce(duration) ──────────►│
+ * │◄── BuildingUpdateNotification(CONSTRUCTING) ───│
+ * │ │ │ (time passes)
+ * │ │◄──────────│ CompleteConstructionCmd
+ * │ │── persist ConstructionCompletedEvent
+ * │◄── BuildingUpdateNotification(COMPLETED) ──────│
  *
  * Crash Recovery:
- *   On RecoveryCompleted, any building still CONSTRUCTING gets its timer
- *   rescheduled for the remaining duration (or fired immediately if overdue).
+ * On RecoveryCompleted, any building still CONSTRUCTING gets its timer
+ * rescheduled for the remaining duration (or fired immediately if overdue).
  */
 public class BuildingActor
         extends EventSourcedBehavior<BuildingCommand, BuildingEvent, BuildingsState> {
@@ -44,18 +45,18 @@ public class BuildingActor
     // -----------------------------------------------------------------------
     // Sharding key — entity ID = "Buildings-{playerId}"
     // -----------------------------------------------------------------------
-    public static final EntityTypeKey<BuildingCommand> ENTITY_KEY =
-            EntityTypeKey.create(BuildingCommand.class, "BuildingActor");
+    public static final EntityTypeKey<BuildingCommand> ENTITY_KEY = EntityTypeKey.create(BuildingCommand.class,
+            "BuildingActor");
 
-    private final String entityId;          // "Buildings-player-1"
+    private final String entityId; // "Buildings-player-1"
     private final ActorContext<BuildingCommand> context;
     private final ClusterSharding sharding;
 
     private BuildingActor(ActorContext<BuildingCommand> context,
-                          PersistenceId persistenceId,
-                          String entityId) {
+            PersistenceId persistenceId,
+            String entityId) {
         super(persistenceId);
-        this.context  = context;
+        this.context = context;
         this.entityId = entityId;
         this.sharding = ClusterSharding.get(context.getSystem());
     }
@@ -65,10 +66,9 @@ public class BuildingActor
      * entityId should be "Buildings-{playerId}".
      */
     public static Behavior<BuildingCommand> create(String entityId) {
-        return Behaviors.setup(ctx ->
-                new BuildingActor(ctx,
-                        PersistenceId.of(ENTITY_KEY.name(), entityId),
-                        entityId));
+        return Behaviors.setup(ctx -> new BuildingActor(ctx,
+                PersistenceId.of(ENTITY_KEY.name(), entityId),
+                entityId));
     }
 
     // -----------------------------------------------------------------------
@@ -111,11 +111,12 @@ public class BuildingActor
      */
     private void onRecoveryCompleted(BuildingsState state) {
         state.buildings().forEach((buildingId, detail) -> {
-            if (!"CONSTRUCTING".equals(detail.status())) return;
+            if (!"CONSTRUCTING".equals(detail.status()))
+                return;
 
             BuildingUpgradeConfig config = BuildingUpgradeConfig.fromType(detail.type());
             Duration fullDuration = config.getDurationForLevel(detail.level());
-            long elapsed    = System.currentTimeMillis() - detail.startTime();
+            long elapsed = System.currentTimeMillis() - detail.startTime();
             long remainingMs = fullDuration.toMillis() - elapsed;
 
             if (remainingMs <= 0) {
@@ -145,7 +146,7 @@ public class BuildingActor
     public CommandHandler<BuildingCommand, BuildingEvent, BuildingsState> commandHandler() {
         return newCommandHandlerBuilder()
                 .forAnyState()
-                .onCommand(StartConstructionCmd.class,    this::onStartConstruction)
+                .onCommand(StartConstructionCmd.class, this::onStartConstruction)
                 .onCommand(CompleteConstructionCmd.class, this::onCompleteConstruction)
                 .build();
     }
@@ -183,7 +184,6 @@ public class BuildingActor
                             entityId, cmd.buildingId(), cmd.buildingType(),
                             currentLevel, cmd.targetLevel(), upgradeDuration);
 
-                    sharding.
                     // Schedule internal completion command
                     context.scheduleOnce(
                             upgradeDuration,
