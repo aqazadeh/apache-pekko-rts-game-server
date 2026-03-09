@@ -6,6 +6,8 @@ import org.apache.pekko.actor.typed.ActorRef;
 
 public record StartConstructionCmd(
         String buildingId,
+        String buildingType,
         int targetLevel,
-        ActorRef<KingdomCommand> replyToMaster) implements BuildingCommand {
-}
+        ActorRef<KingdomCommand> replyToMaster
+) implements BuildingCommand {}
+

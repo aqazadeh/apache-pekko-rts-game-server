@@ -5,6 +5,9 @@
 /home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/building/BuildingDomainService.java
 /home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/building/BuildingEvent.java
 /home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/building/BuildingState.java
+/home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/building/BuildingUpgradeConfig.java
+/home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/building/CompleteConstructionCmd.java
+/home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/building/ConstructionCompletedEvent.java
 /home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/building/ConstructionStartedEvent.java
 /home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/building/StartConstructionCmd.java
 /home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/common/JsonSerializable.java

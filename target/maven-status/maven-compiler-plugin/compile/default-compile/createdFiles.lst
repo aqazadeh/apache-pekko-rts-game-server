@@ -1,4 +1,5 @@
 com/conquerer/server/domain/player/UpgradeBuildingCmd.class
+com/conquerer/server/domain/building/BuildingUpgradeConfig.class
 com/conquerer/server/domain/player/BuildingUpdateNotification.class
 com/conquerer/server/domain/player/Resources.class
 com/conquerer/server/domain/player/BuildingMirrorUpdatedEvent.class
@@ -11,6 +12,8 @@ com/conquerer/server/Main.class
 com/conquerer/server/domain/common/JsonSerializable.class
 com/conquerer/server/domain/building/ConstructionStartedEvent.class
 com/conquerer/server/domain/player/KingdomCommand.class
+com/conquerer/server/domain/building/CompleteConstructionCmd.class
+com/conquerer/server/domain/building/ConstructionCompletedEvent.class
 com/conquerer/server/domain/building/BuildingState.class
 com/conquerer/server/domain/player/KingdomEvent.class
 com/conquerer/server/domain/building/BuildingEvent.class
