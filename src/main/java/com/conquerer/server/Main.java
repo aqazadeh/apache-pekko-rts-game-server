@@ -44,12 +44,22 @@ public class Main {
 
         player1.tell(new UpgradeBuildingCmd("castle-1", "CASTLE"));
         player1.tell(new UpgradeBuildingCmd("barracks-1", "BARRACKS"));
+        player1.tell(new UpgradeBuildingCmd("barracks-2", "BARRACKS"));
+        player1.tell(new UpgradeBuildingCmd("barracks-3", "BARRACKS"));
+        player1.tell(new UpgradeBuildingCmd("barracks-4", "BARRACKS"));
         player1.tell(new UpgradeBuildingCmd("farm-1", "FARM"));
+        player1.tell(new UpgradeBuildingCmd("farm-2", "FARM"));
+        player1.tell(new UpgradeBuildingCmd("farm-3", "FARM"));
+        player1.tell(new UpgradeBuildingCmd("farm-4", "FARM"));
+        player1.tell(new UpgradeBuildingCmd("farm-5", "FARM"));
         player1.tell(new UpgradeBuildingCmd("mine-1", "MINE"));
+        player1.tell(new UpgradeBuildingCmd("mine-2", "MINE"));
+        player1.tell(new UpgradeBuildingCmd("mine-3", "MINE"));
+        player1.tell(new UpgradeBuildingCmd("mine-4", "MINE"));
+        player1.tell(new UpgradeBuildingCmd("mine-5", "MINE"));
 
         // Keep running long enough to observe all schedulers completing
         // In production this is irrelevant; actors live as long as the system runs.
         System.out.println("System running — waiting for schedulers to fire...");
     }
 }
-

@@ -73,7 +73,7 @@ public class KingdomPlayerActor extends EventSourcedBehavior<KingdomCommand, Kin
                 int targetLevel = (mirror != null ? mirror.level() : 0) + 1;
 
                 // Find the slave actor
-                EntityRef<BuildingCommand> buildingSlave = sharding.entityRefFor(BuildingActor.ENTITY_KEY, playerId);
+                EntityRef<BuildingCommand> buildingSlave = sharding.entityRefFor(BuildingActor.ENTITY_KEY, "Buildings-" + playerId);
 
                 // Tell slave, pass a reference to self for push-based response
                 // NO context.ask is used. It's a completely asynchronous fire-and-forget push.
