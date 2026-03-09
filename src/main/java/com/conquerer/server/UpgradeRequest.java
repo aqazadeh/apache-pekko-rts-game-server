@@ -1,4 +1,3 @@
 package com.conquerer.server;
 
-public record UpgradeRequest() {
-}
+public record UpgradeRequest(String buildingId, String type) {}

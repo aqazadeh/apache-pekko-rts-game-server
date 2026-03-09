@@ -1,11 +1,10 @@
 package com.conquerer.server.domain.building;
 
-import com.conquerer.server.domain.player.BuildingMirror;
-import com.conquerer.server.domain.player.PlayerProfileAggregate;
+import com.conquerer.server.domain.player.state.BuildingMirror;
+import com.conquerer.server.domain.player.state.PlayerProfileAggregate;
 
 public class BuildingDomainService {
 
-    // Pure method - no side effects
     public static boolean canUpgrade(PlayerProfileAggregate state, String buildingId) {
         BuildingMirror mirror = state.buildings().get(buildingId);
         int currentLevel = mirror != null ? mirror.level() : 0;

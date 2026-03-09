@@ -1,4 +1,4 @@
-package com.conquerer.server.domain.building;
+package com.conquerer.server.domain.building.state;
 
 import java.time.Duration;
 

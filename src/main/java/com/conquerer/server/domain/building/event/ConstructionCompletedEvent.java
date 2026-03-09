@@ -1,4 +1,4 @@
-package com.conquerer.server.domain.building;
+package com.conquerer.server.domain.building.event;
 
 /**
  * Persisted event when a building upgrade is fully completed.

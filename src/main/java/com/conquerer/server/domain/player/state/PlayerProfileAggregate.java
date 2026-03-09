@@ -1,6 +1,7 @@
-package com.conquerer.server.domain.player;
+package com.conquerer.server.domain.player.state;
 
 import com.conquerer.server.domain.common.JsonSerializable;
+
 import java.util.HashMap;
 import java.util.Map;
 

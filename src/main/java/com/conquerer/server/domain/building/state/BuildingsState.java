@@ -1,5 +1,7 @@
-package com.conquerer.server.domain.building;
+package com.conquerer.server.domain.building.state;
 
+import com.conquerer.server.domain.building.event.ConstructionCompletedEvent;
+import com.conquerer.server.domain.building.event.ConstructionStartedEvent;
 import com.conquerer.server.domain.common.JsonSerializable;
 
 import java.util.Collections;

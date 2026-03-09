@@ -5,10 +5,10 @@
         </encoder>
     </appender>
 
-    <logger name="org.apache.pekko" level="INFO" />
-    <logger name="com.conquerer" level="INFO" />
+    <logger name="org.apache.pekko" level="ERROR" />
+    <logger name="com.conquerer" level="ERROR" />
 
-    <root level="INFO">
+    <root level="ERROR">
         <appender-ref ref="STDOUT" />
     </root>
 </configuration>

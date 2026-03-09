@@ -1,4 +1,4 @@
-package com.conquerer.server.domain.player;
+package com.conquerer.server.domain.player.event;
 
 public record BuildingMirrorUpdatedEvent(
         String buildingId,
