@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  scylla:
+    image: scylladb/scylla:5.4
+    container_name: conquerer-scylla
+    ports:
+      - "9042:9042"   # CQL native transport
+      - "9160:9160"   # Thrift (opsiyonel)
+    volumes:
+      - scylla-data:/var/lib/scylla
+    command: --smp 2 --memory 4G --developer-mode 1
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster' 2>/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+
+volumes:
+  scylla-data:

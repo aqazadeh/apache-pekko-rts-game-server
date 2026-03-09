@@ -76,25 +76,17 @@
             <artifactId>pekko-persistence-query_${scala.binary.version}</artifactId>
         </dependency>
 
-        <!-- Apache Pekko Persistence JDBC -->
+        <!-- Apache Pekko Persistence Cassandra (ScyllaDB uyumlu) -->
         <dependency>
             <groupId>org.apache.pekko</groupId>
-            <artifactId>pekko-persistence-jdbc_${scala.binary.version}</artifactId>
-            <version>1.2.0</version>
+            <artifactId>pekko-persistence-cassandra_${scala.binary.version}</artifactId>
+            <version>1.1.0</version>
         </dependency>
 
-        <!-- PostgreSQL Driver -->
+        <!-- Pekko Cluster Tools (Cassandra plugin bağımlılığı) -->
         <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <version>42.7.3</version>
-        </dependency>
-
-        <!-- HikariCP for Connection Pooling -->
-        <dependency>
-            <groupId>com.zaxxer</groupId>
-            <artifactId>HikariCP</artifactId>
-            <version>5.1.0</version>
+            <groupId>org.apache.pekko</groupId>
+            <artifactId>pekko-cluster-tools_${scala.binary.version}</artifactId>
         </dependency>
 
         <!-- Jackson Serialization for Pekko -->
