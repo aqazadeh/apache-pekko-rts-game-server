@@ -1,4 +1,4 @@
-package com.conquerer.server.domain.building;
+package com.conquerer.server.domain.building.event;
 
 public record ConstructionStartedEvent(
         String buildingId,

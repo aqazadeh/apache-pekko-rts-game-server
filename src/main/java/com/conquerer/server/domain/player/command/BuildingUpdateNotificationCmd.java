@@ -1,6 +1,6 @@
-package com.conquerer.server.domain.player;
+package com.conquerer.server.domain.player.command;
 
-public record BuildingUpdateNotification(
+public record BuildingUpdateNotificationCmd(
         String buildingId,
         int newLevel,
         String status) implements KingdomCommand {

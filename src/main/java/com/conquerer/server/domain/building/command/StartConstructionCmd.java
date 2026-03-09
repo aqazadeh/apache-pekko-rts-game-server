@@ -1,4 +1,4 @@
-package com.conquerer.server.domain.building;
+package com.conquerer.server.domain.building.command;
 
 /**
  * Master → BuildingActor: start an upgrade for the given building.

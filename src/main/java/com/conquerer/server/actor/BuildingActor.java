@@ -1,74 +1,58 @@
 package com.conquerer.server.actor;
 
+import com.conquerer.server.domain.building.command.BuildingCommand;
+import com.conquerer.server.domain.building.command.CompleteConstructionCmd;
+import com.conquerer.server.domain.building.command.StartConstructionCmd;
+import com.conquerer.server.domain.building.event.BuildingEvent;
+import com.conquerer.server.domain.building.event.ConstructionCompletedEvent;
+import com.conquerer.server.domain.building.event.ConstructionStartedEvent;
+import com.conquerer.server.domain.building.state.BuildingDetail;
+import com.conquerer.server.domain.building.state.BuildingUpgradeConfig;
+import com.conquerer.server.domain.building.state.BuildingsState;
+import com.conquerer.server.domain.player.command.BuildingUpdateNotificationCmd;
+import com.conquerer.server.domain.player.command.KingdomCommand;
+import org.apache.pekko.actor.Cancellable;
 import org.apache.pekko.actor.typed.Behavior;
+import org.apache.pekko.actor.typed.PostStop;
 import org.apache.pekko.actor.typed.javadsl.ActorContext;
 import org.apache.pekko.actor.typed.javadsl.Behaviors;
-import org.apache.pekko.cluster.sharding.ClusterSharding;
+import org.apache.pekko.cluster.sharding.typed.javadsl.ClusterSharding;
 import org.apache.pekko.cluster.sharding.typed.javadsl.EntityRef;
 import org.apache.pekko.cluster.sharding.typed.javadsl.EntityTypeKey;
 import org.apache.pekko.persistence.typed.PersistenceId;
 import org.apache.pekko.persistence.typed.RecoveryCompleted;
 import org.apache.pekko.persistence.typed.javadsl.*;
 
-import com.conquerer.server.domain.building.*;
-import com.conquerer.server.domain.player.*;
-
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
-/**
- * BuildingActor — player-scoped manager actor.
- *
- * EntityId = "Buildings-{playerId}" (e.g. "Buildings-player-1")
- *
- * A single instance of this actor manages ALL buildings for one player.
- * Its state is {@link BuildingsState}, which holds a Map<buildingId,
- * BuildingDetail>.
- *
- * Lifecycle of an upgrade:
- * Master BuildingActor Timer
- * │─── StartConstructionCmd ──────────►│
- * │ │── persist ConstructionStartedEvent
- * │ │── scheduleOnce(duration) ──────────►│
- * │◄── BuildingUpdateNotification(CONSTRUCTING) ───│
- * │ │ │ (time passes)
- * │ │◄──────────│ CompleteConstructionCmd
- * │ │── persist ConstructionCompletedEvent
- * │◄── BuildingUpdateNotification(COMPLETED) ──────│
- *
- * Crash Recovery:
- * On RecoveryCompleted, any building still CONSTRUCTING gets its timer
- * rescheduled for the remaining duration (or fired immediately if overdue).
- */
 public class BuildingActor
         extends EventSourcedBehavior<BuildingCommand, BuildingEvent, BuildingsState> {
 
-    // -----------------------------------------------------------------------
-    // Sharding key — entity ID = "Buildings-{playerId}"
-    // -----------------------------------------------------------------------
-    public static final EntityTypeKey<BuildingCommand> ENTITY_KEY = EntityTypeKey.create(BuildingCommand.class,
-            "BuildingActor");
+    public static final EntityTypeKey<BuildingCommand> ENTITY_KEY =
+            EntityTypeKey.create(BuildingCommand.class, "BuildingActor");
 
-    private final String entityId; // "Buildings-player-1"
+    private final String entityId;
     private final ActorContext<BuildingCommand> context;
     private final ClusterSharding sharding;
 
+    private final Map<String, Cancellable> activeTimers = new HashMap<>();
+
     private BuildingActor(ActorContext<BuildingCommand> context,
-            PersistenceId persistenceId,
-            String entityId) {
+                          PersistenceId persistenceId,
+                          String entityId) {
         super(persistenceId);
-        this.context = context;
+        this.context  = context;
         this.entityId = entityId;
         this.sharding = ClusterSharding.get(context.getSystem());
     }
 
-    /**
-     * Factory — called by ClusterSharding.
-     * entityId should be "Buildings-{playerId}".
-     */
     public static Behavior<BuildingCommand> create(String entityId) {
-        return Behaviors.setup(ctx -> new BuildingActor(ctx,
-                PersistenceId.of(ENTITY_KEY.name(), entityId),
-                entityId));
+        return Behaviors.setup(ctx ->
+                new BuildingActor(ctx,
+                        PersistenceId.of(ENTITY_KEY.name(), entityId),
+                        entityId));
     }
 
     // -----------------------------------------------------------------------
@@ -80,62 +64,56 @@ public class BuildingActor
         return BuildingsState.EMPTY;
     }
 
-    // -----------------------------------------------------------------------
-    // Retention / Snapshotting
-    // -----------------------------------------------------------------------
-
     @Override
     public RetentionCriteria retentionCriteria() {
-        return RetentionCriteria.snapshotEvery(5, 2);
+        return RetentionCriteria.snapshotEvery(50, 2);
     }
 
     // -----------------------------------------------------------------------
-    // Recovery — reschedule timers for every CONSTRUCTING building
+    // Signals
     // -----------------------------------------------------------------------
 
     @Override
     public SignalHandler<BuildingsState> signalHandler() {
         return newSignalHandlerBuilder()
                 .onSignal(RecoveryCompleted.instance(), this::onRecoveryCompleted)
+                .onSignal(PostStop.instance(), this::onPostStop)
                 .build();
     }
 
-    /**
-     * After journal replay: scan the map for any building still CONSTRUCTING
-     * and reschedule its completion timer.
-     *
-     * NOTE: ActorRef is not serializable across JVM restarts, so
-     * {@link CompleteConstructionCmd#replyToMaster()} will be {@code null}
-     * for recovered timers. The actor persists the event durably; the Master
-     * can re-query state if it misses the push notification.
-     */
     private void onRecoveryCompleted(BuildingsState state) {
         state.buildings().forEach((buildingId, detail) -> {
-            if (!"CONSTRUCTING".equals(detail.status()))
-                return;
+            if (!"CONSTRUCTING".equals(detail.status())) return;
 
             BuildingUpgradeConfig config = BuildingUpgradeConfig.fromType(detail.type());
-            Duration fullDuration = config.getDurationForLevel(detail.level());
-            long elapsed = System.currentTimeMillis() - detail.startTime();
-            long remainingMs = fullDuration.toMillis() - elapsed;
+            Duration fullDuration        = config.getDurationForLevel(detail.level());
+            long elapsed                 = System.currentTimeMillis() - detail.startTime();
+            long remainingMs             = fullDuration.toMillis() - elapsed;
+
+            // null masterPlayerId — no push notification after recovery (by design)
+            CompleteConstructionCmd cmd = new CompleteConstructionCmd(
+                    buildingId, detail.level() + 1, null);
 
             if (remainingMs <= 0) {
-                // Already overdue — trigger completion immediately
                 context.getLog().warn(
-                        "[BuildingActor:{}] {} recovered CONSTRUCTING but timer overdue. Completing now.",
-                        entityId, buildingId);
-                context.getSelf().tell(
-                        new CompleteConstructionCmd(buildingId, detail.level() + 1, null));
+                        "[BuildingActor:{}] {} overdue by {}ms on recovery — completing immediately.",
+                        entityId, buildingId, -remainingMs);
+                context.getSelf().tell(cmd);        // self-message, current incarnation
             } else {
                 context.getLog().info(
-                        "[BuildingActor:{}] {} recovered CONSTRUCTING — rescheduling timer in {}ms",
+                        "[BuildingActor:{}] {} rescheduling timer via EntityRef in {}ms",
                         entityId, buildingId, remainingMs);
-                context.scheduleOnce(
-                        Duration.ofMillis(remainingMs),
-                        context.getSelf(),
-                        new CompleteConstructionCmd(buildingId, detail.level() + 1, null));
+                scheduleViaEntityRef(buildingId, Duration.ofMillis(remainingMs), cmd);
             }
         });
+    }
+
+    private void onPostStop(BuildingsState state) {
+        context.getLog().info(
+                "[BuildingActor:{}] PostStop — cancelling {} timer(s).",
+                entityId, activeTimers.size());
+        activeTimers.values().forEach(Cancellable::cancel);
+        activeTimers.clear();
     }
 
     // -----------------------------------------------------------------------
@@ -146,23 +124,17 @@ public class BuildingActor
     public CommandHandler<BuildingCommand, BuildingEvent, BuildingsState> commandHandler() {
         return newCommandHandlerBuilder()
                 .forAnyState()
-                .onCommand(StartConstructionCmd.class, this::onStartConstruction)
+                .onCommand(StartConstructionCmd.class,    this::onStartConstruction)
                 .onCommand(CompleteConstructionCmd.class, this::onCompleteConstruction)
                 .build();
     }
 
-    /**
-     * Master requests a building upgrade.
-     *
-     * Guard: if the building is already CONSTRUCTING, reject silently.
-     */
     private Effect<BuildingEvent, BuildingsState> onStartConstruction(
             BuildingsState state, StartConstructionCmd cmd) {
 
-        // ── Duplicate check ────────────────────────────────────────────────
         if (state.isConstructing(cmd.buildingId())) {
             context.getLog().warn(
-                    "[BuildingActor:{}] {} is already CONSTRUCTING — ignoring duplicate request.",
+                    "[BuildingActor:{}] {} already CONSTRUCTING — ignoring duplicate.",
                     entityId, cmd.buildingId());
             return Effect().none();
         }
@@ -173,38 +145,33 @@ public class BuildingActor
 
         return Effect().persist(event)
                 .thenRun(newState -> {
-                    // Determine upgrade duration
                     BuildingDetail detail = newState.buildings().get(cmd.buildingId());
-                    int currentLevel = detail != null ? detail.level() : 0;
+                    int currentLevel      = detail != null ? detail.level() : 0;
+
                     BuildingUpgradeConfig config = BuildingUpgradeConfig.fromType(cmd.buildingType());
-                    Duration upgradeDuration = config.getDurationForLevel(currentLevel);
+                    Duration upgradeDuration      = config.getDurationForLevel(currentLevel);
 
                     context.getLog().info(
                             "[BuildingActor:{}] {} (type={}) level {} → {} | duration: {}",
                             entityId, cmd.buildingId(), cmd.buildingType(),
                             currentLevel, cmd.targetLevel(), upgradeDuration);
 
-                    // Schedule internal completion command
-                    context.scheduleOnce(
-                            upgradeDuration,
-                            context.getSelf(),
+                    // ── Timer: via EntityRef → actor wakes up if passivated ──
+                    scheduleViaEntityRef(cmd.buildingId(), upgradeDuration,
                             new CompleteConstructionCmd(
-                                    cmd.buildingId(), cmd.targetLevel(), cmd.replyToMaster()));
+                                    cmd.buildingId(), cmd.targetLevel(), cmd.masterPlayerId()));
 
-                    // Notify Master: CONSTRUCTING
-                    if (cmd.replyToMaster() != null) {
-                        cmd.replyToMaster().tell(new BuildingUpdateNotification(
-                                cmd.buildingId(), currentLevel, "CONSTRUCTING"));
-                    }
+                    // ── Notify Master: CONSTRUCTING (via EntityRef) ──────────
+                    notifyMaster(cmd.masterPlayerId(),
+                            new BuildingUpdateNotificationCmd(cmd.buildingId(), currentLevel, "CONSTRUCTING"));
                 });
     }
 
-    /**
-     * Timer elapsed — building upgrade is done.
-     * Persist COMPLETED event and notify Master.
-     */
     private Effect<BuildingEvent, BuildingsState> onCompleteConstruction(
             BuildingsState state, CompleteConstructionCmd cmd) {
+
+        Cancellable handle = activeTimers.remove(cmd.buildingId());
+        if (handle != null) handle.cancel();    // no-op on natural fire, defensive on self-msg
 
         long completedAt = System.currentTimeMillis();
         context.getLog().info(
@@ -217,32 +184,59 @@ public class BuildingActor
         return Effect().persist(event)
                 .thenRun(newState -> {
                     BuildingDetail detail = newState.buildings().get(cmd.buildingId());
-                    int finalLevel = detail != null ? detail.level() : cmd.targetLevel();
+                    int finalLevel        = detail != null ? detail.level() : cmd.targetLevel();
 
-                    if (cmd.replyToMaster() != null) {
-                        cmd.replyToMaster().tell(new BuildingUpdateNotification(
-                                cmd.buildingId(), finalLevel, "COMPLETED"));
+                    // ── Notify Master: COMPLETED (via EntityRef) ─────────────
+                    if (cmd.masterPlayerId() != null) {
+                        notifyMaster(cmd.masterPlayerId(),
+                                new BuildingUpdateNotificationCmd(cmd.buildingId(), finalLevel, "COMPLETED"));
                     } else {
-                        // Recovered after crash — ActorRef lost, state is durable.
+                        // Post-recovery path: masterPlayerId not available (not persisted by design)
                         context.getLog().info(
-                                "[BuildingActor:{}] {} completed (post-recovery) — no live master ref.",
+                                "[BuildingActor:{}] {} completed (post-recovery) — no masterPlayerId, skipping notification.",
                                 entityId, cmd.buildingId());
                     }
                 });
     }
 
     // -----------------------------------------------------------------------
-    // Event Handler — applies events onto BuildingsState
+    // Event Handler
     // -----------------------------------------------------------------------
 
     @Override
     public EventHandler<BuildingsState, BuildingEvent> eventHandler() {
         return newEventHandlerBuilder()
                 .forAnyState()
-                .onEvent(ConstructionStartedEvent.class,
-                        (state, event) -> state.withConstructionStarted(event))
-                .onEvent(ConstructionCompletedEvent.class,
-                        (state, event) -> state.withConstructionCompleted(event))
+                .onEvent(ConstructionStartedEvent.class,    BuildingsState::withConstructionStarted)
+                .onEvent(ConstructionCompletedEvent.class,  BuildingsState::withConstructionCompleted)
                 .build();
+    }
+
+    // -----------------------------------------------------------------------
+    // Internal helpers
+    // -----------------------------------------------------------------------
+
+    private void scheduleViaEntityRef(String buildingId, Duration delay, BuildingCommand message) {
+        Cancellable existing = activeTimers.remove(buildingId);
+        if (existing != null) {
+            existing.cancel();
+            context.getLog().warn("[BuildingActor:{}] Replaced timer for {} (safety).", entityId, buildingId);
+        }
+
+        EntityRef<BuildingCommand> selfRef = sharding.entityRefFor(ENTITY_KEY, entityId);
+        Cancellable handle = context.getSystem().scheduler().scheduleOnce(
+                delay,
+                () -> selfRef.tell(message),
+                context.getSystem().executionContext()
+        );
+        activeTimers.put(buildingId, handle);
+    }
+
+
+    private void notifyMaster(String masterPlayerId, KingdomCommand notification) {
+        if (masterPlayerId == null) return;
+        EntityRef<KingdomCommand> masterRef =
+                sharding.entityRefFor(KingdomPlayerActor.ENTITY_KEY, masterPlayerId);
+        masterRef.tell(notification);
     }
 }

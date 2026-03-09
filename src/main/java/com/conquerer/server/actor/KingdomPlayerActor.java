@@ -1,5 +1,12 @@
 package com.conquerer.server.actor;
 
+import com.conquerer.server.domain.building.command.BuildingCommand;
+import com.conquerer.server.domain.building.command.StartConstructionCmd;
+import com.conquerer.server.domain.player.command.BuildingUpdateNotificationCmd;
+import com.conquerer.server.domain.player.command.KingdomCommand;
+import com.conquerer.server.domain.player.command.UpgradeBuildingCmd;
+import com.conquerer.server.domain.player.event.BuildingMirrorUpdatedEvent;
+import com.conquerer.server.domain.player.event.KingdomEvent;
 import org.apache.pekko.actor.typed.Behavior;
 import org.apache.pekko.actor.typed.javadsl.ActorContext;
 import org.apache.pekko.actor.typed.javadsl.Behaviors;
@@ -9,12 +16,10 @@ import org.apache.pekko.cluster.sharding.typed.javadsl.EntityRef;
 import org.apache.pekko.persistence.typed.PersistenceId;
 import org.apache.pekko.persistence.typed.javadsl.*;
 
-import com.conquerer.server.domain.player.BuildingMirror;
-import com.conquerer.server.domain.player.PlayerProfileAggregate;
-import com.conquerer.server.domain.player.Progression;
-import com.conquerer.server.domain.player.Resources;
-import com.conquerer.server.domain.player.*;
-import com.conquerer.server.domain.building.*;
+import com.conquerer.server.domain.player.state.BuildingMirror;
+import com.conquerer.server.domain.player.state.PlayerProfileAggregate;
+import com.conquerer.server.domain.player.state.Progression;
+import com.conquerer.server.domain.player.state.Resources;
 import com.conquerer.server.domain.building.BuildingDomainService;
 
 import java.util.Map;
@@ -35,6 +40,28 @@ public class KingdomPlayerActor extends EventSourcedBehavior<KingdomCommand, Kin
                 this.playerId = playerId;
                 this.sharding = sharding;
         }
+//        static MessageExtractor<ShardEnvelope, Object> messageExtractor(int numberOfShards) {
+//                return new HashCodeMessageExtractor<ShardEnvelope, Object>(numberOfShards) {
+//
+//                        @Override
+//                        public String entityId(ShardEnvelope message) {
+//                                // Aktörün kendisi hala PlayerId ile tekil olmalı
+//                                return message.getPlayerId();
+//                        }
+//
+//                        @Override
+//                        public String shardId(ShardEnvelope message) {
+//                                // KRİTİK NOKTA: Aynı krallıktaki herkes aynı shardId'yi alır
+//                                // Böylece Pekko bu shard'ı (ve içindeki tüm oyuncuları) aynı Node'a koyar
+//                                return String.valueOf(Math.abs(message.getKingdomId().hashCode() % numberOfShards));
+//                        }
+//
+//                        @Override
+//                        public Object entityMessage(ShardEnvelope message) {
+//                                return message.getPayload();
+//                        }
+//                };
+//        }
 
         public static Behavior<KingdomCommand> create(String playerId, ClusterSharding sharding) {
                 return Behaviors.setup(
@@ -52,16 +79,15 @@ public class KingdomPlayerActor extends EventSourcedBehavior<KingdomCommand, Kin
                 return newCommandHandlerBuilder()
                         .forAnyState()
                         .onCommand(UpgradeBuildingCmd.class, this::onUpgradeBuilding)
-                        .onCommand(BuildingUpdateNotification.class, this::onBuildingUpdateNotification)
+                        .onCommand(BuildingUpdateNotificationCmd.class, this::onBuildingUpdateNotification)
                         .build();
         }
 
         @Override
         public RetentionCriteria retentionCriteria() {
-                return RetentionCriteria.snapshotEvery(5, 2);
+                return RetentionCriteria.snapshotEvery(50, 2);
         }
 
-        // 1- Client's generic request comes here
         private Effect<KingdomEvent, PlayerProfileAggregate> onUpgradeBuilding(PlayerProfileAggregate state,
                         UpgradeBuildingCmd cmd) {
                 if (!BuildingDomainService.canUpgrade(state, cmd.buildingId())) {
@@ -72,21 +98,16 @@ public class KingdomPlayerActor extends EventSourcedBehavior<KingdomCommand, Kin
                 BuildingMirror mirror = state.buildings().get(cmd.buildingId());
                 int targetLevel = (mirror != null ? mirror.level() : 0) + 1;
 
-                // Find the slave actor
                 EntityRef<BuildingCommand> buildingSlave = sharding.entityRefFor(BuildingActor.ENTITY_KEY, "Buildings-" + playerId);
 
-                // Tell slave, pass a reference to self for push-based response
-                // NO context.ask is used. It's a completely asynchronous fire-and-forget push.
                 context.getLog().info("Sending StartConstructionCmd to BuildingActor {}", cmd.buildingId());
-                buildingSlave.tell(new StartConstructionCmd(cmd.buildingId(), cmd.buildingType(), targetLevel, context.getSelf()));
+                buildingSlave.tell(new StartConstructionCmd(cmd.buildingId(), cmd.buildingType(), targetLevel, playerId));
 
                 return Effect().none();
         }
 
-        // 2a- Slave persisted CONSTRUCTING → mirror reflects "in progress" immediately
-        // 2b- Slave's timer elapsed, COMPLETED → mirror reflects final level and goes IDLE
         private Effect<KingdomEvent, PlayerProfileAggregate> onBuildingUpdateNotification(PlayerProfileAggregate state,
-                        BuildingUpdateNotification notification) {
+                        BuildingUpdateNotificationCmd notification) {
 
                 String status = notification.status();
 
@@ -98,8 +119,6 @@ public class KingdomPlayerActor extends EventSourcedBehavior<KingdomCommand, Kin
                         context.getLog().info(
                                         "[Master] Building {} upgrade DONE → new level={}. Resetting to IDLE.",
                                         notification.buildingId(), notification.newLevel());
-                        // Once completed, normalize status to IDLE so the building
-                        // is ready for the next upgrade cycle.
                         status = "IDLE";
                 }
 

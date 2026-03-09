@@ -1,4 +1,4 @@
-package com.conquerer.server.domain.player;
+package com.conquerer.server.domain.player.state;
 
 import com.conquerer.server.domain.common.JsonSerializable;
 

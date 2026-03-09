@@ -1,4 +1,4 @@
-package com.conquerer.server.domain.building;
+package com.conquerer.server.domain.building.command;
 
 /**
  * Internal timer command: upgrade duration elapsed, finalize the construction.
