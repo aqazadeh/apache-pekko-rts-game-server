@@ -1,0 +1,29 @@
+# High-Performance Game Server Checkpoint | Walkthrough
+
+This walkthrough outlines the implementations created for the Clash Of Kings style high-performance distributed game server architecture.
+
+## Overview
+
+The setup strictly adheres to a **No-Ask Policy** utilizing **Pekko's Cluster Sharding** and **Event Sourced Behaviors** natively with Java 21 `Records`. 
+
+### Key Deliverables Completed:
+1. **Java 21 Project Initialized:** We configured [pom.xml](file:///home/rovshan/videos/conquerer-2/pom.xml) with Pekko 1.0.3 and all the necessary persistence and sharding libraries. I also upgraded the host JDK explicitly to Java 21 via SDKMAN to ensure Maven compiled the code correctly using `<source>21</source>`.
+2. **Core Domain Models:** Introduced immutable Data `Records`: [PlayerProfileAggregate](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/models/PlayerProfileAggregate.java#7-22), [BuildingMirror](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/models/BuildingMirror.java#5-6), [BuildingState](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/models/BuildingState.java#5-11), and base marker interface [JsonSerializable](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/protocol/JsonSerializable.java#6-7). 
+3. **No-Ask Master-Slave Architecture:**
+   - **[Master Actor] KingdomPlayerActor:** Built `EventSourcedBehavior` logic handling commands from simple proxies, validating state securely through `BuildingDomainService.canUpgrade`, and passing immutable commands via `tell()` to corresponding Slave shards.
+   - **[Slave Actor] BuildingActor:** Processes commands, performs database commits (simulate using `jdbc-journal`), and only *after* a successful commit explicitly performs a Push update `replyToMaster.tell(BuildingUpdateNotification...)` using a generic payload, safely maintaining an Eventual Consistent mirror.
+4. **Bootstrapping Script:** Added [Main.java](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/Main.java) which boots the "ConquererSystem" Actor System, initializes the Sharding module to securely hold state, and tests an instantiation query via [UpgradeBuildingCmd("Castle", "MAIN_CASTLE")](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/protocol/UpgradeBuildingCmd.java#3-5).
+
+## Successful Validation
+
+The code gracefully compiles without warnings under `javac release 21`:
+
+```
+[INFO] --- maven-compiler-plugin:3.13.0:compile (default-compile) @ conquerer-server ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 19 source files with javac [debug target 21] to target/classes
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+```
+
+Feel free to expand on [application.conf](file:///home/rovshan/videos/conquerer-2/src/main/resources/application.conf) by connecting your active live Postgres database or implement further actors (e.g., `EconomyActor` or `CombatActor`) using the identical No-Ask design pattern.

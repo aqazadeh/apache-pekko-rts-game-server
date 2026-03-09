@@ -1,0 +1,59 @@
+# High-Performance Game Server Architecture Implementation Plan
+
+This plan details the implementation of a Clash Of Kings style distributed game server using Java 21 and Pekko 1.0.x with a "No-Ask" Command-Query and Mirroring pattern. 
+
+## User Review Required
+
+> [!IMPORTANT]
+> The directory `/home/rovshan/videos/conquerer-2` is currently empty.
+> I will initialize a new Maven project using Java 21. **If you prefer Gradle or a specific package naming convention, please let me know.** Otherwise, I will default to Maven and `com.conquerer.server`.
+
+## Proposed Changes
+
+### Project Initialization
+
+#### [NEW] `pom.xml`
+Create the base Maven project configuration, explicitly adding Java 21 properties and dependencies for `pekko-actor-typed`, `pekko-cluster-sharding-typed`, `pekko-persistence-typed`, and PostgreSQL jdbc drivers.
+
+#### [NEW] `src/main/resources/application.conf`
+Configure Pekko Cluster, Serialization (Jackson), and Persistence layer.
+
+### Core Architecture & Domain Models
+
+#### [NEW] `src/main/java/com/conquerer/server/domain/models/PlayerProfileAggregate.java`
+Contains all the mirrored info for a player, including `Progression`, `Resources`, and `BuildingMirror`.
+
+#### [NEW] `src/main/java/com/conquerer/server/domain/models/BuildingState.java`
+Contains the true state managed by `BuildingActor`.
+
+### Messaging Protocols
+
+#### [NEW] `src/main/java/com/conquerer/server/domain/protocol/Protocol.java` (Or separate components)
+Contains the marker interface `JsonSerializable` and all inner `Command` and `Event` classes (e.g. `UpgradeBuildingCmd`, `StartConstructionCmd`, `BuildingUpdateNotification`, etc.).
+
+### Domain Services
+
+#### [NEW] `src/main/java/com/conquerer/server/domain/service/BuildingDomainService.java`
+Pure functions for operations like cost calculation and validation.
+
+### Actors (Master and Slave)
+
+#### [NEW] `src/main/java/com/conquerer/server/actor/KingdomPlayerActor.java`
+Implements the Master Actor with State Mirroring, firing `tell` commands to `BuildingActor` instead of using `ask`.
+
+#### [NEW] `src/main/java/com/conquerer/server/actor/BuildingActor.java`
+Implements the Slave Actor that handles real construction state ownership and replies to the Master upon successful persistence.
+
+## Verification Plan
+
+### Automated Tests
+*Currently no automated test structure since it's an empty proj.*
+
+### Manual Verification
+- We will start the Main application to verify the cluster forms locally.
+- We'll write a simple bootstrap logic (`Main.java`) that simulates a client sending an `UpgradeBuildingCmd` to the `KingdomPlayerActor` Shard Region.
+- We will observe the terminal output and logs to trace the internal "Push-based Update" flow:
+  1. Master validates and forwards.
+  2. Slave persists building.
+  3. Slave notifies Master via callback.
+  4. Master persists updated profile.

@@ -1,0 +1,26 @@
+# Game Server Initialization & Architecture Setup Tasks
+
+- [x] Project Setup
+    - [x] Initialize Maven [pom.xml](file:///home/rovshan/videos/conquerer-2/pom.xml) with Pekko dependencies (Typed, Sharding, Persistence, Serialization).
+    - [x] Setup base package structure (`com.conquerer.server`).
+    - [x] Add [application.conf](file:///home/rovshan/videos/conquerer-2/src/main/resources/application.conf) for Pekko Cluster and Persistence.
+- [x] Core Domain Models (State & Serializability)
+    - [x] Create [JsonSerializable](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/protocol/JsonSerializable.java#6-7) marker interface.
+    - [x] Create [Aggregate](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/models/PlayerProfileAggregate.java#7-22) records ([Progression](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/models/Progression.java#5-7), [Resources](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/models/Resources.java#5-6), [BuildingMirror](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/models/BuildingMirror.java#5-6), [PlayerProfileAggregate](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/models/PlayerProfileAggregate.java#7-22)).
+    - [x] Create [BuildingState](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/models/BuildingState.java#5-11) record.
+- [x] Messaging Protocol (Commands & Events)
+    - [x] Define [KingdomCommand](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/protocol/KingdomCommand.java#3-5), [KingdomEvent](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/protocol/KingdomEvent.java#3-5), [BuildingCommand](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/protocol/BuildingCommand.java#3-5), [BuildingEvent](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/protocol/BuildingEvent.java#3-5) interfaces.
+    - [x] Create commands ([UpgradeBuildingCmd](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/protocol/UpgradeBuildingCmd.java#3-5), [StartConstructionCmd](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/protocol/StartConstructionCmd.java#5-10), [BuildingUpdateNotification](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/protocol/BuildingUpdateNotification.java#3-8)).
+    - [x] Create events ([BuildingMirrorUpdatedEvent](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/protocol/BuildingMirrorUpdatedEvent.java#3-8), [ConstructionStartedEvent](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/protocol/ConstructionStartedEvent.java#3-8)).
+- [x] Domain Services
+    - [x] Implement [BuildingDomainService](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/service/BuildingDomainService.java#6-21) with stateless pure business logic (e.g., [canUpgrade](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/domain/service/BuildingDomainService.java#8-16)).
+- [x] Master Actor ([KingdomPlayerActor](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/actor/KingdomPlayerActor.java#21-103))
+    - [x] Implement `EventSourcedBehavior`.
+    - [x] Implement Command Handler (for external commands and Slave notifications).
+    - [x] Implement Event Handler (for persisting mirror state).
+- [x] Slave Actor ([BuildingActor](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/actor/BuildingActor.java#12-65))
+    - [x] Implement `EventSourcedBehavior` for [BuildingActor](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/actor/BuildingActor.java#12-65).
+    - [x] Send `replyToMaster` notification to Master on successful persistence.
+- [x] Verification & Bootstrapping
+    - [x] Set up a basic [Main](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/Main.java#15-40) class to bootstrap the `ActorSystem` and Cluster Sharding.
+    - [x] Verify the "Push-based Update" flow locally via a simulated command in [Main](file:///home/rovshan/videos/conquerer-2/src/main/java/com/conquerer/server/Main.java#15-40).
